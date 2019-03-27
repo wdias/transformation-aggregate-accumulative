@@ -13,9 +13,9 @@ setup(
     'Environment :: Console',
     'Development Status :: 2 - Alpha',
     'Intended Audience :: Developers',
-    'License :: OSI Approved :: BSD License',
+    'License :: Apache-2.0',
     'Operating System :: OS Independent',
     'Programming Language :: Python',
-    'Programming Language :: Python :: 3.5',
+    'Programming Language :: Python :: 3.7',
   ],
 )
