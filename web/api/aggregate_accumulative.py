@@ -5,6 +5,7 @@ from web import util
 
 bp = Blueprint('aggregate_accumulative', __name__)
 callback_url = f'{util.HOST_URL}/extension/transformation/aggregate-accumulative'
+adapter_status = 'http://adapter-status.default.svc.cluster.local'
 
 """ Transformation Structure:
 {
@@ -53,10 +54,19 @@ def extension_transformation_aggregate_accumulative():
         "options": extension['options'],
         'callback': extension['callback'],
         "token": request.args.get('token'),
+        "requestId": request.args.get('requestId'),
         "start": request.args.get('from'),
         "end": request.args.get('end'),
     }
-    process_aggregate_accumulative(**trigger_data)
+    output_variables = process_aggregate_accumulative(**trigger_data)
+    trigger_callback(output_variables, trigger_data.get('callback'), trigger_data.get('token'))
+    if request.args.get('requestId'):
+        for output_var in output_variables:
+            print('1111 ', output_var, trigger_data.get('requestId'))
+            timeseries_Id = output_var.get('timeseriesId')
+            set_request_status(timeseries_Id, trigger_data.get('requestId'), "Extension", "Transformation", "aggregate-accumulative")
+    else:
+        print("WARN: requestId not found. Skip status update.")
 
     del extension['inputVariables']
     del extension['outputVariables']
@@ -74,17 +84,28 @@ def process_aggregate_accumulative(input_variables=None, output_variables=None, 
     input_x = input_variables[0]
     output_y = output_variables[0]
     output_y['data'] = input_x['data']
-    trigger_callback([output_y], kwargs.get('callback'), kwargs.get('token'))
     return [output_y]
 
 
 def trigger_callback(output_variables, callback, token):
-    print("Trigger callback", output_variables)
+    print("Trigger callback: ", output_variables, callback, token)
     callback_trigger = {
         "outputVariables": output_variables,
         "callback": callback_url,
     }
-    res = requests.post(f'{callback}/{token}', json=callback_trigger)
+    res = requests.post(f'{callback}/{token}', data=callback_trigger)
     print(res.status_code, res.text)
     assert res.status_code is 200, f'Unable to update job completion token: {token} for {callback}'
+    return
+
+def set_request_status(timeseriesId, requestId, service, type, extensionFunction):
+    print("Set status", timeseriesId, requestId, service, type, extensionFunction)
+    req_status = {
+        "requestId": requestId,
+        "service": service,
+        "type": type,
+        "extensionFunction": extensionFunction,
+    }
+    res = requests.post(f'{adapter_status}/{timeseriesId}', data=req_status)
+    assert res.status_code is 200, f'Unable to set request status: {requestId} for {extensionFunction}'
     return
